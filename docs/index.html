@@ -122,31 +122,58 @@
     </script>
 	<script>
 (function(){
-  function lockAll() {
-    try {
-      const list =
-        (window.game && Array.isArray(window.game.characters) && window.game.characters) ||
-        (Array.isArray(window.characters) && window.characters) ||
-        [];
+  // Ako želiš da ti automatski odabere određenog lika, stavi broj umjesto null
+  // npr. const PREFERRED_CHAR = 20;  // pokušaj s 20 ako je to “najbolji”
+  const PREFERRED_CHAR = null;
 
-      if (Array.isArray(list)) {
-        list.forEach(c => { if (c && typeof c === 'object') c.locked = true; });
-      }
+  function unlockAllCharacters(){
+    try{
+      const open = indexedDB.open('localforage');
+      open.onsuccess = () => {
+        const db = open.result;
+        if (!db.objectStoreNames.contains('keyvaluepairs')) { db.close(); return; }
 
-      if (typeof window.isUnlocked === 'function') {
-        window.isUnlocked = function(){ return false; };
-      }
+        const tx = db.transaction(['keyvaluepairs'], 'readwrite');
+        const store = tx.objectStore('keyvaluepairs');
+        const changed = [];
 
-      try { localStorage.setItem('unlockedCharacters', '[]'); } catch(e){}
+        // Prođi sve stavke i postavi unlock za char_* i povezane ključeve
+        store.openCursor().onsuccess = ev => {
+          const cursor = ev.target.result;
+          if (!cursor) return;
 
-      console.log('[patch] All characters locked.');
-    } catch (e) {
-      console.warn('[patch] LockAll error:', e);
-    }
+          const k = String(cursor.key);
+          // char_1, char_2, ...  -> 1 (otključano)
+          const isCharNum = /^char_\d+$/.test(k);
+          // ponekad igra koristi agregatni ključ
+          const isAggregate = (k === 'Characters_unlocks');
+
+          if (isCharNum || isAggregate) {
+            cursor.update(1);
+            changed.push(k);
+          }
+
+          // Ako želiš automatski postaviti “trenutni skin/lik”
+          if (PREFERRED_CHAR !== null && k === 'Player_skin') {
+            cursor.update(String(PREFERRED_CHAR));
+            changed.push(k + ' -> ' + PREFERRED_CHAR);
+          }
+
+          cursor.continue();
+        };
+
+        tx.oncomplete = () => { console.log('[patch] unlocked keys:', changed); db.close(); };
+        tx.onerror    = () => { console.warn('[patch] tx error', tx.error); db.close(); };
+      };
+      open.onerror = () => { console.warn('[patch] cannot open localforage', open.error); };
+    }catch(e){ console.warn('[patch] unlockAllCharacters error', e); }
   }
-  lockAll();
-  setTimeout(lockAll, 500);
-  setTimeout(lockAll, 1500);
+
+  // Pokreni više puta (engine zna kasnije upisivati vrijednosti)
+  unlockAllCharacters();
+  setTimeout(unlockAllCharacters, 500);
+  setTimeout(unlockAllCharacters, 1500);
+  setTimeout(unlockAllCharacters, 3000);
 })();
 </script>
 
