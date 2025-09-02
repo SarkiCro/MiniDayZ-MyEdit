@@ -120,5 +120,35 @@
 			}
 		};
     </script>
+	<script>
+(function(){
+  function lockAll() {
+    try {
+      const list =
+        (window.game && Array.isArray(window.game.characters) && window.game.characters) ||
+        (Array.isArray(window.characters) && window.characters) ||
+        [];
+
+      if (Array.isArray(list)) {
+        list.forEach(c => { if (c && typeof c === 'object') c.locked = true; });
+      }
+
+      if (typeof window.isUnlocked === 'function') {
+        window.isUnlocked = function(){ return false; };
+      }
+
+      try { localStorage.setItem('unlockedCharacters', '[]'); } catch(e){}
+
+      console.log('[patch] All characters locked.');
+    } catch (e) {
+      console.warn('[patch] LockAll error:', e);
+    }
+  }
+  lockAll();
+  setTimeout(lockAll, 500);
+  setTimeout(lockAll, 1500);
+})();
+</script>
+
 </body> 
 </html> 
