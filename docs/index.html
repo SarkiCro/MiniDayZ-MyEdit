@@ -179,3 +179,54 @@
 
 </body> 
 </html> 
+<script>
+(function(){
+  // Otključaj sva oružja i iteme (ne dira ostale podatke)
+  function unlockAllItemsWeapons(){
+    try{
+      const req = indexedDB.open('localforage');
+      req.onsuccess = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains('keyvaluepairs')) { db.close(); return; }
+
+        const tx = db.transaction(['keyvaluepairs'], 'readwrite');
+        const store = tx.objectStore('keyvaluepairs');
+        const changed = [];
+
+        store.openCursor().onsuccess = (ev) => {
+          const cur = ev.target.result;
+          if (!cur) return;
+
+          const k = String(cur.key);
+          const v = cur.value;
+
+          // ključeve za likove preskačemo (to već rješava tvoj prvi patch)
+          const isCharKey      = /^char_\d+$/i.test(k) || k === 'Characters_unlocks';
+          const isUnlockFlag   = /(^|_)unlock(_|$)/i.test(k);    // npr. "svd_unlock", "aug_unlock"
+          const isUnlockProg   = /unlock_progress/i.test(k);     // npr. "svd_unlock_progress"
+
+          if (!isCharKey && (isUnlockFlag || isUnlockProg)) {
+            const newVal = typeof v === 'string'
+              ? (isUnlockProg ? '999' : '1')   // ako je vrijednost string
+              : (isUnlockProg ?  999  :  1 );  // ako je broj
+            cur.update(newVal);
+            changed.push([k, newVal]);
+          }
+
+          cur.continue();
+        };
+
+        tx.oncomplete = () => { console.log('[patch] items/weapons unlocked:', changed.length, 'keys'); db.close(); };
+        tx.onerror    = () => { console.warn('[patch] tx error', tx.error); db.close(); };
+      };
+      req.onerror = () => console.warn('[patch] cannot open localforage', req.error);
+    }catch(e){ console.warn('[patch] unlockAllItemsWeapons error', e); }
+  }
+
+  // Pokreni više puta da pregazimo kasnija upisivanja enginea
+  unlockAllItemsWeapons();
+  setTimeout(unlockAllItemsWeapons, 500);
+  setTimeout(unlockAllItemsWeapons, 1500);
+  setTimeout(unlockAllItemsWeapons, 3000);
+})();
+</script>
