@@ -51,41 +51,44 @@
     <!-- The runtime script. -->
 	<script src="c2runtime.js"></script>
 
-    <script>
-		// Start the Construct 2 project running on window load.
-		jQuery(document).ready(function () {			
-			// Create new runtime using the c2canvas
-			cr_createRuntime("c2canvas");
-		});
-		
-		// Pause and resume on page becoming visible/invisible
-		function onVisibilityChanged() {
-			if (document.hidden || document.mozHidden || document.webkitHidden || document.msHidden)
-				cr_setSuspended(true);
-			else
-				cr_setSuspended(false);
-		};
-		
-		document.addEventListener("visibilitychange", onVisibilityChanged, false);
-		document.addEventListener("mozvisibilitychange", onVisibilityChanged, false);
-		document.addEventListener("webkitvisibilitychange", onVisibilityChanged, false);
-		document.addEventListener("msvisibilitychange", onVisibilityChanged, false);
-		
-		function OnRegisterSWError(e) {
-			console.warn("Failed to register service worker: ", e);
-		};
-		
-		// Runtime calls this global method when ready to start caching.
-		window.C2_RegisterSW = function C2_RegisterSW() {
-			if (!navigator.serviceWorker) return;
-			try {
-				navigator.serviceWorker.register("sw.js", { scope: "./" })
-				.then(function (reg) { console.log("Registered service worker on " + reg.scope); })
-				.catch(OnRegisterSWError);
-			}
-			catch (e) { OnRegisterSWError(e); }
-		};
-    </script>
+   
+<script>
+  // Start + uhvati Construct 2 runtime pa ga spremi u window.__rt
+  jQuery(document).ready(function () {
+
+    // presretnemo originalnu funkciju da zabilježimo runtime odmah
+    var __origCreate = window.cr_createRuntime;
+    if (typeof __origCreate === 'function') {
+      window.cr_createRuntime = function () {
+        var res = __origCreate.apply(this, arguments);
+        try {
+          window.__rt =
+            (typeof window.cr_getC2Runtime === 'function' && window.cr_getC2Runtime()) ||
+            (window.cr && window.cr.runtime) || null;
+          console.log('[hook] runtime captured (wrap):', !!window.__rt);
+        } catch (e) {}
+        return res;
+      };
+    }
+
+    // pokreni igru
+    cr_createRuntime("c2canvas");
+
+    // rezervni pokušaj: kratko “pollaj” dok se runtime ne pojavi
+    (function wait(n){
+      try {
+        if (!window.__rt) {
+          if (typeof window.cr_getC2Runtime === 'function') window.__rt = window.cr_getC2Runtime();
+          else if (window.cr && window.cr.runtime)           window.__rt = window.cr.runtime;
+        }
+        if (window.__rt) { console.log('[hook] runtime captured (poll):', true); return; }
+      } catch(e) {}
+      if ((n||0) < 60) setTimeout(function(){ wait((n||0)+1); }, 100);
+      else console.warn('[hook] runtime not captured');
+    })();
+
+  });
+</script>
 
 	<!-- PATCH 1: Otključaj SVE likove (ostalo ostaje) -->
 	<script>
